@@ -1,0 +1,148 @@
+обновление всех параметров
+sudo apt update
+
+перед установкой postgres заменить локали системы на русскоязычные
+sudo locale-gen ru_RU.UTF-8
+обновление локали
+sudo update-locale
+
+показать текущую локали
+locale
+
+установка postgres
+sudo apt install python3-pip python3-dev libpq-dev postgresql postgresql-contrib nginx curl
+
+если изменения происходят уже после установки базы менять локали по другому
+
+sudo nano /etc/default/locale
+
+отредактрировать этими данными
+LANG="ru_RU.UTF-8"
+LANGUAGE="ru_RU.UTF-8"
+LC_CTYPE="C.UTF-8"
+LC_NUMERIC="ru_RU.UTF-8"
+LC_TIME="ru_RU.UTF-8"
+LC_COLLATE="C.UTF-8"
+LC_MONETARY="ru_RU.UTF-8"
+LC_MESSAGES="ru_RU.UTF-8"
+LC_PAPER="ru_RU.UTF-8"
+LC_NAME="ru_RU.UTF-8"
+LC_ADDRESS="ru_RU.UTF-8"
+LC_TELEPHONE="ru_RU.UTF-8"
+LC_MEASUREMENT="ru_RU.UTF-8"
+LC_IDENTIFICATION="ru_RU.UTF-8"
+
+обновить изменения
+. /etc/default/locale
+
+
+далее в самой БД сделать следующее
+из за конфликтов кодировки migrate будет отдавать ошибку, чтобы это исправить надо
+
+sudo -u postgres psql
+
+сначала удалить бд которую уже создали
+drop database myDB;
+
+update pg_database set datallowconn = TRUE where datname = 'template0';
+--- UPDATE 1
+
+\c template0
+--- You are now connected to database "template0".
+
+update pg_database set datistemplate = FALSE where datname = 'template1';
+--- UPDATE 1
+
+drop database template1;
+--- DROP DATABASE
+
+
+с русским языком, возможен конфлик если локали не прописаны для русского
+CREATE DATABASE dbname TEMPLATE=template0 ENCODING 'UTF-8' LC_COLLATE 'ru_RU.UTF-8' LC_CTYPE 'ru_RU.UTF-8';
+
+или вариант без указания языка
+CREATE DATABASE dbname WITH template = template0 ENCODING 'UTF8' LC_CTYPE 'C' LC_COLLATE 'C';
+
+далее выполнить эти команды
+update pg_database set datistemplate = TRUE where datname = 'template1';
+--- UPDATE 1
+
+\c template1
+--- You are now connected to database "template1".
+
+update pg_database set datallowconn = FALSE where datname = 'template0';
+--- UPDATE 1
+
+можно проверить результат
+\list
+
+
+
+ДАЛЕЕ ВСЕ КАК С ЧИСТОГО ЛИСТА МОЖНО РАБОТАТЬ С БД
+
+создание нашей бд
+CREATE DATABASE myproject;
+
+создать пользователя для проекта 
+CREATE USER myprojectuser WITH PASSWORD 'password';
+
+начальные настройки для бд
+ALTER ROLE myprojectuser SET client_encoding TO 'utf8';
+ALTER ROLE myprojectuser SET default_transaction_isolation TO 'read committed';
+ALTER ROLE myprojectuser SET timezone TO 'UTC';
+
+предоставить новому пользователю права админа для новой бд
+GRANT ALL PRIVILEGES ON DATABASE myproject TO myprojectuser;
+
+выход
+\q
+
+
+СОЗДАНИЕ ВИРТУАЛЬНОГО ОКРУЖЕНИЯ ДЛЯ ПРОЕКТА
+sudo -H pip3 install --upgrade pip
+sudo -H pip3 install virtualenv
+
+создать папку проекта
+mkdir ~/myprojectdir
+cd ~/myprojectdir
+
+создать виртуальную среду
+virtualenv myprojectenv
+
+активировать виртуальную среду
+source myprojectenv/bin/activate
+
+установить необходимые зависимости
+pip install django gunicorn psycopg2-binary
+
+склонировать в папку проект с гита
+
+в настройках проекта прописать адрес хоста
+ALLOWED_HOSTS = ['203.0.113.5']
+
+заменить настройки бд на постгрес
+DATABASES = {
+    'default': {
+        'ENGINE': 'django.db.backends.postgresql_psycopg2',
+        'NAME': 'myproject', имя базы которую создали
+        'USER': 'myprojectuser', имя и пароль юзера админа этой бд
+        'PASSWORD': 'password',
+        'HOST': 'localhost',
+        'PORT': '',
+    }
+}
+
+для статики прописать 
+import os
+STATIC_ROOT = os.path.join(BASE_DIR, 'static/')
+
+сделать миграции
+создать суперюзера
+
+для теста надо разрешить доступ к порту 8000
+sudo ufw allow 8000
+
+запуск проекта
+python3 manage.py runserver 0.0.0.0:8000
+
+в браузере ввести адрез из ALLOWED_HOSTS и на конце :8000 проект должен работать
