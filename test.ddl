@@ -32,7 +32,7 @@ CREATE TABLE IF NOT EXISTS person_film_work
 CREATE TABLE IF NOT EXISTS genre
 (
     id uuid PRIMARY KEY,
-    name text NOT NULL,
+    name text UNIQUE NOT NULL,
     description text,
     created timestamp with time zone,
     modified timestamp with time zone
